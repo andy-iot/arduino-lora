@@ -176,7 +176,7 @@ void loop() {
     detectedShake();
   }
 
-  String msg = "{\"type\":\"temperture\", \"counter\":\"" + countStr + "\",\"node\":\"" + NodeId + "\",\"temperature\":\"" + String(temp) + "\",\"pressure\":\"" + String(pres) + "\",\"humidity\":\"" + String(hum) + "\"}";
+  String msg = "{\"type\":\"temperature\", \"counter\":\"" + countStr + "\",\"node\":\"" + NodeId + "\",\"temperature\":\"" + String(temp) + "\",\"pressure\":\"" + String(pres) + "\",\"humidity\":\"" + String(hum) + "\"}";
 
   updateOled(counter);
   Serial.println("Sending Temp Message: " + String(counter));
