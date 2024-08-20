@@ -6,6 +6,8 @@
 #include "SSD1306.h" 
 #include "images.h"
 #include <BME280I2C.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
 
 
 #define SCK     5    // GPIO5  -- SCK
@@ -36,13 +38,70 @@ BME280I2C::Settings settings(
 );
 
 BME280I2C bme(settings);
+Adafruit_MPU6050 mpu;
+
+void static updateOled(int counter)
+{
+  display.clear();
+  display.setTextAlignment(TEXT_ALIGN_LEFT);
+  display.setFont(ArialMT_Plain_10);
+  
+  display.drawString(0, 0, "Sending packet: ");
+  display.drawString(90, 0, String(counter));
+  display.display();
+}
+
+void static sendLoRaMsg(String msg)
+{
+  // send packet
+  LoRa.beginPacket();
+  LoRa.print("Message: " + msg);
+  LoRa.endPacket();
+}
+
+void static detectedShake()
+{
+  /* Get new sensor events with the readings */
+  sensors_event_t a, g, mpuTemp;
+  mpu.getEvent(&a, &g, &mpuTemp);
+
+  /* Print out the values */
+  Serial.print("AccelX:");
+  Serial.print(a.acceleration.x);
+  Serial.print(",");
+  Serial.print("AccelY:");
+  Serial.print(a.acceleration.y);
+  Serial.print(",");
+  Serial.print("AccelZ:");
+  Serial.print(a.acceleration.z);
+  Serial.print(", ");
+  Serial.print("GyroX:");
+  Serial.print(g.gyro.x);
+  Serial.print(",");
+  Serial.print("GyroY:");
+  Serial.print(g.gyro.y);
+  Serial.print(",");
+  Serial.print("GyroZ:");
+  Serial.print(g.gyro.z);
+  Serial.println("");
+
+  String NodeId = WiFi.macAddress();
+
+  String msg = "{\"type\":\"shake\", \"node\":\"" + NodeId + "\",\"AccelX\":\"" + a.acceleration.x + "\",\"AccelY\":\"" + a.acceleration.y + "\",\"AccelZ\":\"" + a.acceleration.z + "\"}";
+  
+  Serial.println("Sending Shake Message!");
+  Serial.println(msg);
+  sendLoRaMsg(msg);
+}
 
 void setup() {
+
+  // attempt to get NTP from wifi if we can
   
   Serial.begin(115200);
   while (!Serial);
   Serial.println();
-  Serial.println("LoRa Sender Test");
+  Serial.println("LoRa Test");
   
   SPI.begin(SCK,MISO,MOSI,SS);
   LoRa.setPins(SS,RST,DI0);
@@ -74,6 +133,25 @@ void setup() {
        Serial.println("Found UNKNOWN sensor! Error!");
   }
 
+  // setup the MPU
+  Serial.println("Initialize MPU6050");
+
+  if (!mpu.begin()) {
+    Serial.println("Failed to find MPU6050 chip");
+    while (1) {
+      delay(10);
+    }
+  }
+  Serial.println("MPU6050 Found!");
+
+  //setupt motion detection
+  mpu.setHighPassFilter(MPU6050_HIGHPASS_0_63_HZ);
+  mpu.setMotionDetectionThreshold(1);
+  mpu.setMotionDetectionDuration(20);
+  mpu.setInterruptPinLatch(true);	// Keep it latched.  Will turn off when reinitialized.
+  mpu.setInterruptPinPolarity(true);
+  mpu.setMotionInterrupt(true);
+
   display.init();
   display.flipScreenVertically();  
   display.setFont(ArialMT_Plain_10);
@@ -87,33 +165,29 @@ void loop() {
 
   float temp(NAN), hum(NAN), pres(NAN);
 
-  BME280::TempUnit tempUnit(BME280::TempUnit_Celsius);
+  BME280::TempUnit tempUnit(BME280::TempUnit_Fahrenheit);
   BME280::PresUnit presUnit(BME280::PresUnit_Pa);
 
   bme.read(pres, temp, hum, tempUnit, presUnit);
 
-  String msg = "{\"node\":\"" + NodeId + "\",\"temperature\":\"" + String(temp) + "\",\"pressure\":\"" + String(pres) + "\",\"humidity\":\"" + String(hum) + "\"}";
+  String countStr = String(counter);
 
-  display.clear();
-  display.setTextAlignment(TEXT_ALIGN_LEFT);
-  display.setFont(ArialMT_Plain_10);
-  
-  display.drawString(0, 0, "Sending packet: ");
-  display.drawString(90, 0, String(counter));
-  display.drawString(190, 0, msg);
-  Serial.println(String(counter));
+  if(mpu.getMotionInterruptStatus()) {
+    detectedShake();
+  }
+
+  String msg = "{\"type\":\"temperture\", \"counter\":\"" + countStr + "\",\"node\":\"" + NodeId + "\",\"temperature\":\"" + String(temp) + "\",\"pressure\":\"" + String(pres) + "\",\"humidity\":\"" + String(hum) + "\"}";
+
+  updateOled(counter);
+  Serial.println("Sending Temp Message: " + String(counter));
   Serial.println(msg);
-  display.display();
 
-  // send packet
-  LoRa.beginPacket();
-  LoRa.print(msg);
-  //LoRa.print(counter);
-  LoRa.endPacket();
+  sendLoRaMsg(msg);
 
   counter++;
-  digitalWrite(2, HIGH);   // turn the LED on (HIGH is the voltage level)
+  digitalWrite(25, HIGH);   // turn the LED on (HIGH is the voltage level)
   delay(1000);                       // wait for a second
-  digitalWrite(2, LOW);    // turn the LED off by making the voltage LOW
+  digitalWrite(25, LOW);    // turn the LED off by making the voltage LOW
   delay(1000);                       // wait for a second
 }
+
