@@ -41,6 +41,8 @@ Adafruit_MPU6050 mpu;
 
 struct count_payload_t count_from_libpax;
 
+String NodeId;
+
 void process_count(void) {
   printf("pax: %lu; %lu; %lu;\n", count_from_libpax.pax, count_from_libpax.wifi_count, count_from_libpax.ble_count);
 }
@@ -107,8 +109,6 @@ void static detectedShake()
   Serial.print(g.gyro.z);
   Serial.println("");
 
-  String NodeId = WiFi.macAddress();
-
   String msg = "{\"type\":\"shake\", \"node\":\"" + NodeId + "\",\"AccelX\":\"" + a.acceleration.x + "\",\"AccelY\":\"" + a.acceleration.y + "\",\"AccelZ\":\"" + a.acceleration.z + "\"}";
   
   Serial.println("Sending Shake Message!");
@@ -117,11 +117,11 @@ void static detectedShake()
 }
 
 void setup() {
-
-  // attempt to get NTP from wifi if we can
-  
   Serial.begin(115200);
   while (!Serial);
+
+  NodeId = WiFi.macAddress();
+
   Serial.println();
   Serial.println("LoRa Test");
   
@@ -184,8 +184,6 @@ void setup() {
 }
 
 void loop() {
-
-  String NodeId = WiFi.macAddress();
 
   float temp(NAN), hum(NAN), pres(NAN);
 
