@@ -5,6 +5,7 @@
 #include <WiFi.h>
 #include "SSD1306.h" 
 #include "images.h"
+#include "uptime.h"
 #include <BME280I2C.h>
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
@@ -43,14 +44,23 @@ struct count_payload_t count_from_libpax;
 
 String NodeId;
 
+float temp(NAN), hum(NAN), pres(NAN);
+
 void static updateOled(int counter)
 {
   display.clear();
   display.setTextAlignment(TEXT_ALIGN_LEFT);
   display.setFont(ArialMT_Plain_10);
   
-  display.drawString(0, 0, "Sending packet: ");
-  display.drawString(90, 0, String(counter));
+  display.drawString(0, 0, NodeId);
+  display.drawString(0, 14, "Temp / Hum / Pres: ");
+  display.drawString(5, 24, String(temp) + " / " + String(hum) + " / " + String(pres));
+  display.drawString(0, 39, "PAX / BLE: " + String(count_from_libpax.pax) + " / " + String(count_from_libpax.ble_count));
+
+  uptime::calculateUptime();
+
+  display.drawString(0, 54, String(uptime::getDays()) + "d " + String(uptime::getHours()) + "h " + String(uptime::getMinutes()) + "m " + String(uptime::getSeconds()) + "s");
+  
   display.display();
 }
 
@@ -58,7 +68,7 @@ void static sendLoRaMsg(String msg)
 {
   // send packet
   LoRa.beginPacket();
-  LoRa.print("Message: " + msg);
+  LoRa.print(msg);
   LoRa.endPacket();
 }
 
@@ -66,9 +76,9 @@ void process_count(void) {
   //printf("pax: %lu; %lu; %lu;\n", count_from_libpax.pax, count_from_libpax.wifi_count, count_from_libpax.ble_count);
   String msg = "{\"type\":\"pax\", \"node\":\"" + NodeId + "\",\"pax\":\"" + count_from_libpax.pax + "\",\"wifi\":\"" + count_from_libpax.wifi_count + "\",\"ble\":\"" + count_from_libpax.ble_count + "\"}";
   
-  Serial.println("\nSending Pax Message!");
+  Serial.println("\nPax Count Updated");
   Serial.println(msg);
-  sendLoRaMsg(msg);
+  //sendLoRaMsg(msg);
 }
 
 void initPaxCount() {
@@ -84,7 +94,7 @@ void initPaxCount() {
   libpax_update_config(&configuration);
 
   // internal processing initialization
-  libpax_counter_init(process_count, &count_from_libpax, 10, 1); 
+  libpax_counter_init(process_count, &count_from_libpax, 5, 1); 
   libpax_counter_start();
 }
 
@@ -98,7 +108,8 @@ void static detectedShake()
   
   Serial.println("\nSending Shake Message!");
   Serial.println(msg);
-  sendLoRaMsg(msg);
+  //TODO find a way to get this into the larger package
+  //sendLoRaMsg(msg);
 }
 
 void setup() {
@@ -170,10 +181,8 @@ void setup() {
 
 void loop() {
 
-  float temp(NAN), hum(NAN), pres(NAN);
-
   BME280::TempUnit tempUnit(BME280::TempUnit_Fahrenheit);
-  BME280::PresUnit presUnit(BME280::PresUnit_Pa);
+  BME280::PresUnit presUnit(BME280::PresUnit_hPa);
 
   bme.read(pres, temp, hum, tempUnit, presUnit);
 
@@ -183,7 +192,7 @@ void loop() {
     detectedShake();
   }
 
-  String msg = "{\"type\":\"temperature\", \"counter\":\"" + countStr + "\",\"node\":\"" + NodeId + "\",\"temperature\":\"" + String(temp) + "\",\"pressure\":\"" + String(pres) + "\",\"humidity\":\"" + String(hum) + "\"}";
+  String msg = "{\"type\":\"temperature\", \"counter\":\"" + countStr + "\",\"node\":\"" + NodeId + "\",\"temperature\":\"" + String(temp) + "\",\"pressure\":\"" + String(pres) + "\",\"humidity\":\"" + String(hum) + "\",\"pax\":\"" + count_from_libpax.pax + "\",\"wifi\":\"" + count_from_libpax.wifi_count + "\",\"ble\":\"" + count_from_libpax.ble_count + "\"}";
 
   updateOled(counter);
   Serial.println("\nSending BME Message: " + String(counter));
@@ -193,8 +202,8 @@ void loop() {
 
   counter++;
   digitalWrite(25, HIGH);   // turn the LED on (HIGH is the voltage level)
-  delay(1000);                       // wait for a second
+  delay(500);                       // wait for a second
   digitalWrite(25, LOW);    // turn the LED off by making the voltage LOW
-  delay(1000);                       // wait for a second
+  delay(500);                       // wait for a second
 }
 
