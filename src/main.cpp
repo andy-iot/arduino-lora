@@ -43,27 +43,6 @@ struct count_payload_t count_from_libpax;
 
 String NodeId;
 
-void process_count(void) {
-  printf("pax: %lu; %lu; %lu;\n", count_from_libpax.pax, count_from_libpax.wifi_count, count_from_libpax.ble_count);
-}
-
-void initPaxCount() {
-  struct libpax_config_t configuration; 
-  libpax_default_config(&configuration);
-  configuration.blecounter = 1;
-  configuration.blescantime = 0; // infinit
-  configuration.wificounter = 1; 
-  configuration.wifi_channel_map = WIFI_CHANNEL_ALL;
-  configuration.wifi_channel_switch_interval = 5;
-  configuration.wifi_rssi_threshold = -80;
-  configuration.ble_rssi_threshold = -80;
-  libpax_update_config(&configuration);
-
-  // internal processing initialization
-  libpax_counter_init(process_count, &count_from_libpax, 10, 1); 
-  libpax_counter_start();
-}
-
 void static updateOled(int counter)
 {
   display.clear();
@@ -83,35 +62,41 @@ void static sendLoRaMsg(String msg)
   LoRa.endPacket();
 }
 
+void process_count(void) {
+  //printf("pax: %lu; %lu; %lu;\n", count_from_libpax.pax, count_from_libpax.wifi_count, count_from_libpax.ble_count);
+  String msg = "{\"type\":\"pax\", \"node\":\"" + NodeId + "\",\"pax\":\"" + count_from_libpax.pax + "\",\"wifi\":\"" + count_from_libpax.wifi_count + "\",\"ble\":\"" + count_from_libpax.ble_count + "\"}";
+  
+  Serial.println("\nSending Pax Message!");
+  Serial.println(msg);
+  sendLoRaMsg(msg);
+}
+
+void initPaxCount() {
+  struct libpax_config_t configuration; 
+  libpax_default_config(&configuration);
+  configuration.blecounter = 1;
+  configuration.blescantime = 0; // infinit
+  configuration.wificounter = 1; 
+  configuration.wifi_channel_map = WIFI_CHANNEL_ALL;
+  configuration.wifi_channel_switch_interval = 5;
+  configuration.wifi_rssi_threshold = -80;
+  configuration.ble_rssi_threshold = -80;
+  libpax_update_config(&configuration);
+
+  // internal processing initialization
+  libpax_counter_init(process_count, &count_from_libpax, 10, 1); 
+  libpax_counter_start();
+}
+
 void static detectedShake()
 {
   /* Get new sensor events with the readings */
   sensors_event_t a, g, mpuTemp;
   mpu.getEvent(&a, &g, &mpuTemp);
 
-  /* Print out the values */
-  Serial.print("AccelX:");
-  Serial.print(a.acceleration.x);
-  Serial.print(",");
-  Serial.print("AccelY:");
-  Serial.print(a.acceleration.y);
-  Serial.print(",");
-  Serial.print("AccelZ:");
-  Serial.print(a.acceleration.z);
-  Serial.print(", ");
-  Serial.print("GyroX:");
-  Serial.print(g.gyro.x);
-  Serial.print(",");
-  Serial.print("GyroY:");
-  Serial.print(g.gyro.y);
-  Serial.print(",");
-  Serial.print("GyroZ:");
-  Serial.print(g.gyro.z);
-  Serial.println("");
-
   String msg = "{\"type\":\"shake\", \"node\":\"" + NodeId + "\",\"AccelX\":\"" + a.acceleration.x + "\",\"AccelY\":\"" + a.acceleration.y + "\",\"AccelZ\":\"" + a.acceleration.z + "\"}";
   
-  Serial.println("Sending Shake Message!");
+  Serial.println("\nSending Shake Message!");
   Serial.println(msg);
   sendLoRaMsg(msg);
 }
@@ -201,7 +186,7 @@ void loop() {
   String msg = "{\"type\":\"temperature\", \"counter\":\"" + countStr + "\",\"node\":\"" + NodeId + "\",\"temperature\":\"" + String(temp) + "\",\"pressure\":\"" + String(pres) + "\",\"humidity\":\"" + String(hum) + "\"}";
 
   updateOled(counter);
-  Serial.println("Sending Temp Message: " + String(counter));
+  Serial.println("\nSending BME Message: " + String(counter));
   Serial.println(msg);
 
   sendLoRaMsg(msg);
